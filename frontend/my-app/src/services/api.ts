@@ -51,9 +51,12 @@ apiClient.interceptors.response.use(
     }
 
     if (error.response?.status === 401) {
-      localStorage.removeItem('accessToken');
-      localStorage.removeItem('refreshToken');
-      window.location.href = '/login';
+      const isAuthEndpoint = config?.url?.includes('/auth/login') || config?.url?.includes('/auth/register');
+      if (!isAuthEndpoint) {
+        localStorage.removeItem('accessToken');
+        localStorage.removeItem('refreshToken');
+        window.location.href = '/login';
+      }
     }
     return Promise.reject(error);
   },

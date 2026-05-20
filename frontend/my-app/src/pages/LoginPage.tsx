@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { authService } from '../services/auth.service';
 import { useAuthStore } from '../store/auth.store';
 import { useThemeStore } from '../store/theme.store';
+import { useNotificationStore } from '../store/notification.store';
 
 export const LoginPage: React.FC = () => {
   const [email, setEmail] = useState('');
@@ -22,9 +23,10 @@ export const LoginPage: React.FC = () => {
       const result = await authService.login({ email, password });
       setAuth(result.user, result.tokens.accessToken, result.tokens.refreshToken);
       navigate('/dashboard');
-    } catch (err: unknown) {
-      const errorMsg = err instanceof Error ? err.message : 'Login failed';
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.message || err.response?.data?.error || err.message || 'Login failed';
       setError(errorMsg);
+      useNotificationStore.getState().addToast(errorMsg, 'error');
     } finally {
       setLoading(false);
     }
