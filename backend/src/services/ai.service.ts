@@ -59,6 +59,7 @@ Adhere to the following rules:
 - Tone must be highly professional, polished, persuasive, and conversational.
 - Act contextually as a representative of "${companyName}".
 - Compose only the Subject Line and the Body content of the email.
+- The Body content MUST be formatted entirely in valid, beautiful HTML (use <p>, <br>, <strong>, <ul>, <li>, etc.) instead of markdown. Do NOT use markdown asterisks (**).
 - Do not output any chat preambles, introductory thoughts, bracketed placeholders (such as [insert name]), or assistant notes. The email must be immediately ready to be reviewed and dispatched by a sales representative.`;
 
     // 6. Construct rich User context prompt
@@ -85,11 +86,12 @@ ${templateBody}`
 ${activityTimelineText}
 
 --- INSTRUCTIONS ---
-Compose the email following the requested details. Integrate details from the lead's timeline history or source to demonstrate personalized attention and build rapport immediately. Use clean outline spacing:
+Compose the email following the requested details. Integrate details from the lead's timeline history or source to demonstrate personalized attention and build rapport immediately. 
+Output the email in the exact following format, making sure the Body Content is formatted in beautiful HTML:
 Subject: [Compelling Subject Line]
 
-Hi ${lead.name},
-[Body Content]`;
+<p>Hi ${lead.name},</p>
+[HTML Body Content]`;
 
     logger.info(`Assembling copilot prompts for lead ${lead.name} under workspace: ${companyName}`);
 

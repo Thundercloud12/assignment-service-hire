@@ -6,13 +6,17 @@ import { ApiError } from '../errors/ApiError';
 import logger from '../config/logger';
 
 class GraphService {
-  async getNetworkGraphData(userId: string, userRole?: string) {
+  async getNetworkGraphData(userId: string, userRole?: string, organizationId?: string) {
     try {
       const userObjectId = new mongoose.Types.ObjectId(userId);
       const query: Record<string, any> = { deletedAt: null };
 
+      if (organizationId) {
+        query.organizationId = new mongoose.Types.ObjectId(organizationId);
+      }
+
       if (userRole !== 'admin') {
-        query.createdBy = userObjectId;
+        query.$or = [{ createdBy: userObjectId }, { assignedTo: userObjectId }];
       }
 
       const leads = await Lead.find(query)
@@ -147,13 +151,18 @@ class GraphService {
     }
   }
 
-  async getScoreInfluencerGraphData(leadId: string, userId: string, userRole?: string) {
+  async getScoreInfluencerGraphData(leadId: string, userId: string, userRole?: string, organizationId?: string) {
     try {
       const leadObjectId = new mongoose.Types.ObjectId(leadId);
       const query: Record<string, any> = { _id: leadObjectId, deletedAt: null };
 
+      if (organizationId) {
+        query.organizationId = new mongoose.Types.ObjectId(organizationId);
+      }
+
       if (userRole !== 'admin') {
-        query.createdBy = new mongoose.Types.ObjectId(userId);
+        const userObjId = new mongoose.Types.ObjectId(userId);
+        query.$or = [{ createdBy: userObjId }, { assignedTo: userObjId }];
       }
 
       const lead = await Lead.findOne(query);

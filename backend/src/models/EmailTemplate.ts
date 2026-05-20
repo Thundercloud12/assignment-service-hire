@@ -16,7 +16,6 @@ const emailTemplateSchema = new Schema<IEmailTemplate>(
       type: String,
       required: [true, 'Template name is required'],
       trim: true,
-      unique: true,
     },
     subject: {
       type: String,

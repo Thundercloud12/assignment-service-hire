@@ -29,6 +29,8 @@ export interface IRegisterInput {
   password: string;
   role?: 'admin' | 'sales_user';
   avatarUrl?: string;
+  companyName?: string;
+  inviteToken?: string;
 }
 
 export interface IApiResponse<T> {

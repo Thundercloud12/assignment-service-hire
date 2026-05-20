@@ -4,7 +4,7 @@ import logger from '../config/logger';
 import { ValidationError } from '../errors/ValidationError';
 import { authMiddleware } from '../middleware/auth.middleware';
 import { validateBody } from '../middleware/validation.middleware';
-import { loginSchema, refreshTokenSchema, registerSchema } from '../validators/auth.validation';
+import { loginSchema, refreshTokenSchema, registerSchema, inviteSchema } from '../validators/auth.validation';
 
 export const authRouter = Router();
 
@@ -40,3 +40,4 @@ authRouter.post('/login', validateBody(loginSchema), authController.login);
 authRouter.post('/refresh', validateBody(refreshTokenSchema), authController.refreshToken);
 authRouter.get('/me', authMiddleware, authController.getMe);
 authRouter.get('/users', authMiddleware, authController.getUsers);
+authRouter.post('/invite', authMiddleware, validateBody(inviteSchema), authController.inviteUser);

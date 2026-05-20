@@ -53,9 +53,9 @@ export const LeadDetailsModal: React.FC<LeadDetailsModalProps> = ({ leadId, onCl
   const [showSendEmailForm, setShowSendEmailForm] = useState(false);
 
   // AI Copilot States
-  const [showAICopilotModal, setShowAICopilotModal] = useState(false);
-  const [aiCopilotTemplateId, setAICopilotTemplateId] = useState('');
-  const [aiDraftOutput, setAIDraftOutput] = useState('');
+  const [expandedEmailId, setExpandedEmailId] = useState<string | null>(null);
+  const [composerSubject, setComposerSubject] = useState('');
+  const [composerBody, setComposerBody] = useState('');
   const [aiLoading, setAILoading] = useState(false);
   const [aiError, setAIError] = useState('');
 
@@ -235,17 +235,48 @@ export const LeadDetailsModal: React.FC<LeadDetailsModalProps> = ({ leadId, onCl
     }
   };
 
+  // Handle Template Selection & Variable Hydration
+  const handleTemplateSelect = (templateId: string) => {
+    setSelectedTemplateId(templateId);
+    if (!templateId) {
+      setComposerSubject('');
+      setComposerBody('');
+      return;
+    }
+    const template = templates.find((t) => t._id === templateId);
+    if (template && lead) {
+      let subj = template.subject;
+      let bod = template.body;
+      const variablesMap: Record<string, string> = {
+        name: lead.name,
+        email: lead.email,
+        phone: lead.phone || '',
+        status: lead.status,
+        source: lead.source,
+      };
+      Object.entries(variablesMap).forEach(([key, val]) => {
+        const regex = new RegExp(`{{\\s*${key}\\s*}}`, 'gi');
+        subj = subj.replace(regex, val);
+        bod = bod.replace(regex, val);
+      });
+      setComposerSubject(subj);
+      setComposerBody(bod);
+    }
+  };
+
   // Send Email
   const handleSendEmail = async (e: React.FormEvent) => {
     e.preventDefault();
     const addToast = useNotificationStore.getState().addToast;
-    if (!selectedTemplateId) {
-      addToast('Please select a template to send', 'error');
+    if (!composerSubject.trim() || !composerBody.trim()) {
+      addToast('Please provide both a subject and a body for the email', 'error');
       return;
     }
     setEmailLoading(true);
     try {
-      await emailService.sendEmail(leadId, selectedTemplateId);
+      await emailService.sendCustomEmail(leadId, composerSubject, composerBody);
+      setComposerSubject('');
+      setComposerBody('');
       setSelectedTemplateId('');
       setShowSendEmailForm(false);
       fetchEmailLogs();
@@ -266,9 +297,21 @@ export const LeadDetailsModal: React.FC<LeadDetailsModalProps> = ({ leadId, onCl
     setAILoading(true);
     setAIError('');
     try {
-      const draft = await frontendAiService.generateEmailDraft(leadId, aiCopilotTemplateId || null);
-      setAIDraftOutput(draft);
-      addToast('AI sales copilot draft generated successfully!', 'success');
+      const draft = await frontendAiService.generateEmailDraft(leadId, selectedTemplateId || null);
+      
+      let subject = 'AI Draft';
+      let body = draft;
+
+      const subjectMatch = draft.match(/^Subject:\s*(.+)$/im);
+      if (subjectMatch) {
+        subject = subjectMatch[1].trim();
+        body = draft.replace(/^Subject:\s*(.+)$\n*/im, '').trim();
+      }
+
+      setComposerSubject(subject);
+      setComposerBody(body);
+      setShowSendEmailForm(true);
+      addToast('AI sales copilot draft generated successfully! You can now review and edit it.', 'success');
     } catch (err: any) {
       const errMsg = err.response?.data?.message || err.message || 'Failed to generate AI email draft';
       setAIError(errMsg);
@@ -336,8 +379,8 @@ export const LeadDetailsModal: React.FC<LeadDetailsModalProps> = ({ leadId, onCl
   }
 
   return (
-    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center z-50 p-4 overflow-y-auto animate-fade-in">
-      <div className="bg-surface-card text-white rounded-xl max-w-4xl w-full border border-hairline overflow-hidden shadow-2xl flex flex-col my-8 animate-scale-up">
+    <div className="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-start justify-center z-50 p-4 overflow-y-auto animate-fade-in">
+      <div className="bg-surface-card text-white rounded-xl max-w-7xl w-[98%] border border-hairline shadow-2xl flex flex-col my-8 animate-scale-up">
         
         {/* Modal Header */}
         <div className="flex justify-between items-start bg-canvas p-6 border-b border-hairline">
@@ -477,9 +520,11 @@ export const LeadDetailsModal: React.FC<LeadDetailsModalProps> = ({ leadId, onCl
                       className="w-full input-dark bg-zinc-900 disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       <option value="">Unassigned</option>
-                      {users.map((u) => (
+                      {users
+                        .filter((u) => u.role === 'sales_user')
+                        .map((u) => (
                         <option key={u.id} value={u.id}>
-                          {u.fullName} ({u.role === 'admin' ? 'Admin' : 'Agent'})
+                          {u.fullName} (Sales Rep)
                         </option>
                       ))}
                     </select>
@@ -603,48 +648,112 @@ export const LeadDetailsModal: React.FC<LeadDetailsModalProps> = ({ leadId, onCl
                   <h3 className="text-xs font-bold text-zinc-300 uppercase tracking-wider">Outbound Email History</h3>
                   <div className="flex gap-2">
                     <button
-                      onClick={() => setShowAICopilotModal(true)}
-                      className="btn-secondary flex items-center gap-1.5"
-                    >
-                      <span>🤖</span>
-                      AI Copilot Draft
-                    </button>
-                    <button
                       onClick={() => setShowSendEmailForm(!showSendEmailForm)}
                       className="btn-primary"
                     >
-                      {showSendEmailForm ? 'Cancel Send' : 'Send New Email'}
+                      {showSendEmailForm ? 'Cancel Send' : 'Compose New Email'}
                     </button>
                   </div>
                 </div>
 
                 {/* Inner Send Template Form */}
                 {showSendEmailForm && (
-                  <form onSubmit={handleSendEmail} className="bg-canvas p-4 rounded-lg border border-hairline space-y-4 animate-fade-in">
-                    <div className="space-y-1.5">
-                      <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Select Email Template</label>
-                      <select
-                        value={selectedTemplateId}
-                        onChange={(e) => setSelectedTemplateId(e.target.value)}
-                        required
-                        className="w-full input-dark bg-zinc-900"
-                      >
-                        <option value="">-- Choose a template --</option>
-                        {templates.map((t) => (
-                          <option key={t._id} value={t._id}>
-                            {t.name} (Subject: {t.subject})
-                          </option>
-                        ))}
-                      </select>
+                  <form onSubmit={handleSendEmail} className="bg-canvas p-5 rounded-xl border border-hairline space-y-4 animate-fade-in shadow-lg flex flex-col">
+                    
+                    {/* Top Action Bar */}
+                    <div className="flex flex-col md:flex-row justify-between gap-4">
+                      <div className="flex-1 space-y-1.5">
+                        <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Starting Point (Optional Template)</label>
+                        <select
+                          value={selectedTemplateId}
+                          onChange={(e) => handleTemplateSelect(e.target.value)}
+                          className="w-full input-dark bg-zinc-900"
+                        >
+                          <option value="">-- Start from scratch --</option>
+                          {templates.map((t) => (
+                            <option key={t._id} value={t._id}>
+                              {t.name} (Subject: {t.subject})
+                            </option>
+                          ))}
+                        </select>
+                      </div>
+                      <div className="flex items-end">
+                        <button
+                          type="button"
+                          onClick={handleGenerateAIDraft}
+                          disabled={aiLoading}
+                          className="btn-secondary flex items-center gap-1.5 h-[42px]"
+                          title="Generate a highly personalized draft using recent interactions and selected template structure."
+                        >
+                          <span>🤖</span>
+                          {aiLoading ? 'Drafting...' : 'AI Copilot Rewrite'}
+                        </button>
+                      </div>
                     </div>
 
-                    <button
-                      type="submit"
-                      disabled={emailLoading || !selectedTemplateId}
-                      className="btn-primary"
-                    >
-                      {emailLoading ? 'Sending...' : 'Confirm Simulated Outbound'}
-                    </button>
+                    {/* Split View: Editor & Preview */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 pt-4 border-t border-hairline">
+                      
+                      {/* Left Side: Code/Text Editor */}
+                      <div className="space-y-4 flex flex-col">
+                        <div className="space-y-1.5">
+                          <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Email Subject</label>
+                          <input
+                            type="text"
+                            value={composerSubject}
+                            onChange={(e) => setComposerSubject(e.target.value)}
+                            required
+                            className="w-full input-dark"
+                            placeholder="Compelling subject line..."
+                          />
+                        </div>
+                        
+                        <div className="space-y-1.5 flex-1 flex flex-col">
+                          <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Email HTML Body</label>
+                          <textarea
+                            value={composerBody}
+                            onChange={(e) => setComposerBody(e.target.value)}
+                            required
+                            rows={14}
+                            className="w-full p-3 bg-zinc-900 border border-hairline rounded-lg text-sm text-white focus:outline-none focus:border-primary outline-none whitespace-pre-wrap font-mono resize-y flex-1"
+                            placeholder="<p>Write your email here...</p>"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Right Side: Live HTML Preview */}
+                      <div className="space-y-1.5 flex flex-col">
+                        <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">Live Render Preview</label>
+                        <div 
+                          className="flex-1 w-full p-5 bg-white border border-zinc-200 rounded-lg overflow-y-auto text-black text-sm"
+                          style={{ minHeight: '340px' }}
+                        >
+                          {composerSubject && (
+                            <div className="border-b border-zinc-200 pb-3 mb-4">
+                              <h3 className="font-bold text-lg text-zinc-800">{composerSubject}</h3>
+                            </div>
+                          )}
+                          <div 
+                            className="prose prose-sm prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-a:text-blue-600 max-w-none text-zinc-800"
+                            dangerouslySetInnerHTML={{ 
+                              __html: composerBody || '<p class="text-zinc-400 italic">HTML preview will appear here...</p>' 
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Send Button */}
+                    <div className="flex justify-end pt-4 border-t border-hairline">
+                      <button
+                        type="submit"
+                        disabled={emailLoading || !composerSubject || !composerBody}
+                        className="btn-primary flex items-center gap-2"
+                      >
+                        {emailLoading ? 'Sending...' : 'Send Email Now'}
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5"><path strokeLinecap="round" strokeLinejoin="round" d="M12 19l9 2-9-18-9 18 9-2zm0 0v-8"></path></svg>
+                      </button>
+                    </div>
                   </form>
                 )}
 
@@ -680,26 +789,26 @@ export const LeadDetailsModal: React.FC<LeadDetailsModalProps> = ({ leadId, onCl
                             })}
                           </span>
                           
-                          {/* Simulation Buttons */}
+                          {/* View Button */}
                           <div className="flex gap-2">
-                            {history.status === 'sent' && (
-                              <button
-                                onClick={() => handleMockOpen(history._id)}
-                                className="px-2 py-0.5 bg-primary hover:bg-primary-active text-canvas rounded text-[9px] font-extrabold uppercase transition cursor-pointer"
-                              >
-                                Mock Open
-                              </button>
-                            )}
-                            {(history.status === 'sent' || history.status === 'opened') && (
-                              <button
-                                onClick={() => handleMockClick(history._id)}
-                                className="px-2 py-0.5 bg-accent-emerald/10 hover:bg-accent-emerald/20 border border-accent-emerald/30 text-accent-emerald rounded text-[9px] font-extrabold uppercase transition cursor-pointer"
-                              >
-                                Mock Click
-                              </button>
-                            )}
+                            <button
+                              onClick={() => setExpandedEmailId(expandedEmailId === history._id ? null : history._id)}
+                              className="px-2 py-1 bg-zinc-800 hover:bg-zinc-700 text-white rounded text-[9px] font-extrabold uppercase transition cursor-pointer border border-zinc-700"
+                            >
+                              {expandedEmailId === history._id ? 'Hide Email' : 'View Email'}
+                            </button>
                           </div>
                         </div>
+
+                        {/* Expanded View */}
+                        {expandedEmailId === history._id && (
+                          <div className="mt-3 p-4 bg-white rounded-lg text-black text-sm border border-zinc-200 shadow-inner animate-fade-in">
+                            <div 
+                              className="prose prose-sm prose-p:my-2 prose-ul:my-2 prose-ol:my-2 prose-a:text-blue-600 max-w-none text-zinc-800"
+                              dangerouslySetInnerHTML={{ __html: history.body }}
+                            />
+                          </div>
+                        )}
                       </div>
                     ))
                   )}
@@ -800,122 +909,6 @@ export const LeadDetailsModal: React.FC<LeadDetailsModalProps> = ({ leadId, onCl
 
       </div>
 
-      {showAICopilotModal && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-[60] p-4 animate-fade-in">
-          <div className="bg-surface-card border border-hairline rounded-xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-scale-up text-white">
-            
-            {/* Modal Header */}
-            <div className="p-6 border-b border-hairline bg-canvas flex justify-between items-center">
-              <div className="flex items-center gap-2">
-                <span className="text-xl">🤖</span>
-                <div>
-                  <h3 className="text-sm font-bold text-white uppercase tracking-wider">AI Sales Email Copilot</h3>
-                  <p className="text-[10px] text-zinc-400">Context-aware Llama-3 Sales Intelligence</p>
-                </div>
-              </div>
-              <button 
-                onClick={() => {
-                  setShowAICopilotModal(false);
-                  setAICopilotTemplateId('');
-                  setAIDraftOutput('');
-                  setAIError('');
-                }} 
-                className="text-zinc-500 hover:text-white p-1 rounded-lg hover:bg-zinc-900 transition active:scale-[0.9]"
-              >
-                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"></path>
-                </svg>
-              </button>
-            </div>
-
-            {/* Modal Body */}
-            <div className="p-6 space-y-5 overflow-y-auto flex-1">
-              
-              {/* Template selector */}
-              <div className="space-y-1.5">
-                <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">
-                  Base on Email Template (Optional)
-                </label>
-                <select
-                  value={aiCopilotTemplateId}
-                  onChange={(e) => setAICopilotTemplateId(e.target.value)}
-                  className="w-full input-dark bg-zinc-900"
-                  disabled={aiLoading}
-                >
-                  <option value="">-- No template (Introductory Outreach Fallback) --</option>
-                  {templates.map((t) => (
-                    <option key={t._id} value={t._id}>
-                      {t.name}
-                    </option>
-                  ))}
-                </select>
-                <p className="text-[9px] text-zinc-500">
-                  Selecting a template feeds its structure to Llama-3 to maintain consistent company branding.
-                </p>
-              </div>
-
-              {/* Generate Trigger */}
-              <button
-                onClick={handleGenerateAIDraft}
-                disabled={aiLoading}
-                className="btn-primary w-full py-2.5 flex items-center justify-center gap-2 cursor-pointer transition active:scale-[0.98]"
-              >
-                {aiLoading ? (
-                  <>
-                    <div className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
-                    <span>Drafting Context-Aware Pitch...</span>
-                  </>
-                ) : (
-                  <>
-                    <span>✨</span>
-                    <span>Generate AI Copilot Draft</span>
-                  </>
-                )}
-              </button>
-
-              {/* Error box */}
-              {aiError && (
-                <div className="p-3 bg-accent-rose/10 border border-accent-rose/20 rounded-lg text-accent-rose font-mono text-[11px]">
-                  ⚠️ Failed: {aiError}
-                </div>
-              )}
-
-              {/* Output / Editor */}
-              {aiDraftOutput && (
-                <div className="space-y-2 animate-fade-in">
-                  <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">
-                    Generated Sales Pitch Draft
-                  </label>
-                  <textarea
-                    value={aiDraftOutput}
-                    onChange={(e) => setAIDraftOutput(e.target.value)}
-                    rows={12}
-                    className="w-full input-dark font-mono text-xs p-3 leading-relaxed bg-canvas border border-hairline focus:border-primary focus:ring-1 focus:ring-primary/20 rounded-lg"
-                  />
-                  <div className="flex justify-between items-center gap-3">
-                    <span className="text-[9px] text-zinc-500 font-mono">
-                      Feel free to edit the generated text block above before copying or using.
-                    </span>
-                    <button
-                      onClick={() => {
-                        navigator.clipboard.writeText(aiDraftOutput);
-                        useNotificationStore.getState().addToast('Copied draft to clipboard!', 'success');
-                      }}
-                      className="btn-secondary text-[10px] py-1.5 px-3 flex items-center gap-1.5"
-                    >
-                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m-2 4h5m0 0l-3-3m3 3l-3 3"></path>
-                      </svg>
-                      Copy to Clipboard
-                    </button>
-                  </div>
-                </div>
-              )}
-
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

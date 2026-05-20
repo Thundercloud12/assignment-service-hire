@@ -65,12 +65,32 @@ class AuthController {
 
   async getUsers(req: Request, res: Response, next: NextFunction): Promise<void> {
     try {
-      const users = await authService.getUsers();
+      if (!req.user) {
+        throw new ApiError('User not authenticated', 401);
+      }
+      const users = await authService.getUsers(req.user.organizationId);
 
       res.status(200).json({
         success: true,
         message: 'Users loaded successfully',
         data: users,
+      });
+    } catch (error: unknown) {
+      next(error);
+    }
+  }
+
+  async inviteUser(req: Request, res: Response, next: NextFunction): Promise<void> {
+    try {
+      if (!req.user) {
+        throw new ApiError('User not authenticated', 401);
+      }
+
+      await authService.inviteUser(req.user.id, req.body);
+
+      res.status(200).json({
+        success: true,
+        message: 'Invitation sent successfully',
       });
     } catch (error: unknown) {
       next(error);

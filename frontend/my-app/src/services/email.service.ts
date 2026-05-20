@@ -67,6 +67,11 @@ export const emailService = {
     return response.data.data!;
   },
 
+  async sendCustomEmail(leadId: string, subject: string, body: string): Promise<IEmailHistoryData> {
+    const response = await apiClient.post<IApiResponse<IEmailHistoryData>>(`/emails/send-custom/${leadId}`, { subject, body });
+    return response.data.data!;
+  },
+
   async mockOpenEmail(historyId: string): Promise<IEmailHistoryData> {
     const response = await apiClient.post<IApiResponse<IEmailHistoryData>>(`/emails/history/${historyId}/mock-open`);
     return response.data.data!;

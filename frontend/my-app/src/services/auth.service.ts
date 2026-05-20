@@ -28,4 +28,8 @@ export const authService = {
     const response = await apiClient.get<IApiResponse<IUser[]>>('/auth/users');
     return response.data.data ?? [];
   },
+
+  async inviteUser(email: string, role: string): Promise<void> {
+    await apiClient.post('/auth/invite', { email, role });
+  },
 };

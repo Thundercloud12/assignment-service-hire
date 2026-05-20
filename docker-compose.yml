@@ -1,0 +1,35 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: clickleads_backend
+    ports:
+      - "4000:4000"
+    env_file:
+      - ./backend/.env
+    restart: unless-stopped
+    networks:
+      - clickleads_network
+
+  frontend:
+    build:
+      context: ./frontend/my-app
+      dockerfile: Dockerfile
+      args:
+        # Tell Vite to call the local Nginx reverse proxy instead of an absolute URL
+        VITE_API_URL: /api
+    container_name: clickleads_frontend
+    ports:
+      - "80:80"
+    restart: unless-stopped
+    depends_on:
+      - backend
+    networks:
+      - clickleads_network
+
+networks:
+  clickleads_network:
+    driver: bridge

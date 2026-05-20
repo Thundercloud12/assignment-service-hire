@@ -15,7 +15,7 @@ analyticsRouter.get('/', authorizeRoles(['admin']), async (req, res, next) => {
       throw new ApiError('User not authenticated', 401);
     }
 
-    const data = await analyticsService.getDashboardMetrics(req.user.id, req.user.role);
+    const data = await analyticsService.getDashboardMetrics(req.user.id, req.user.role, req.user.organizationId);
     res.json({
       success: true,
       data,
@@ -32,7 +32,7 @@ analyticsRouter.get('/network-graph', async (req, res, next) => {
       throw new ApiError('User not authenticated', 401);
     }
 
-    const data = await graphService.getNetworkGraphData(req.user.id, req.user.role);
+    const data = await graphService.getNetworkGraphData(req.user.id, req.user.role, req.user.organizationId);
     res.json({
       success: true,
       data,
@@ -49,7 +49,7 @@ analyticsRouter.get('/score-influencer/:leadId', async (req, res, next) => {
       throw new ApiError('User not authenticated', 401);
     }
 
-    const data = await graphService.getScoreInfluencerGraphData(req.params.leadId, req.user.id, req.user.role);
+    const data = await graphService.getScoreInfluencerGraphData(req.params.leadId, req.user.id, req.user.role, req.user.organizationId);
     res.json({
       success: true,
       data,

@@ -3,13 +3,17 @@ import { Lead } from '../models/Lead';
 import logger from '../config/logger';
 
 class AnalyticsService {
-  async getDashboardMetrics(userId: string, userRole?: string) {
+  async getDashboardMetrics(userId: string, userRole?: string, organizationId?: string) {
     try {
       const userObjectId = new mongoose.Types.ObjectId(userId);
 
       const matchQuery: Record<string, any> = { deletedAt: null };
+      if (organizationId) {
+        matchQuery.organizationId = new mongoose.Types.ObjectId(organizationId);
+      }
+      
       if (userRole !== 'admin') {
-        matchQuery.createdBy = userObjectId;
+        matchQuery.$or = [{ createdBy: userObjectId }, { assignedTo: userObjectId }];
       }
 
       // KPI Counts

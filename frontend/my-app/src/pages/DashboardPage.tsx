@@ -5,8 +5,9 @@ import { useThemeStore } from '../store/theme.store';
 import { LeadsPage } from './LeadsPage';
 import { TemplatesPage } from './TemplatesPage';
 import { AnalyticsPage } from './AnalyticsPage';
+import { TeamPage } from './TeamPage';
 
-type ViewType = 'leads' | 'templates' | 'analytics';
+type ViewType = 'leads' | 'templates' | 'analytics' | 'team';
 
 export const DashboardPage: React.FC = () => {
   const navigate = useNavigate();
@@ -79,6 +80,18 @@ export const DashboardPage: React.FC = () => {
                   <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 002 2h2a2 2 0 002-2z"></path></svg>
                   Analytics Dashboard
                 </button>
+
+                <button
+                  onClick={() => setCurrentView('team')}
+                  className={`w-full flex items-center gap-3 px-4 py-2.5 rounded-lg text-xs font-bold tracking-wide transition duration-155 active:scale-[0.96] cursor-pointer ${
+                    currentView === 'team'
+                      ? 'bg-primary text-canvas shadow-[0_0_15px_rgba(250,255,105,0.2)]'
+                      : 'text-zinc-400 hover:text-white hover:bg-surface-card'
+                  }`}
+                >
+                  <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2"><path strokeLinecap="round" strokeLinejoin="round" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                  Team Settings
+                </button>
               </>
             )}
 
@@ -132,6 +145,7 @@ export const DashboardPage: React.FC = () => {
         {currentView === 'leads' && <LeadsPage />}
         {currentView === 'templates' && <TemplatesPage />}
         {currentView === 'analytics' && <AnalyticsPage />}
+        {currentView === 'team' && <TeamPage />}
       </main>
 
     </div>

@@ -30,8 +30,8 @@ const toLeadPublic = (doc: any): ILeadPublic => {
     status: doc.status,
     source: doc.source,
     leadScore: doc.leadScore,
-    assignedTo: doc.assignedTo?.toString?.() ?? undefined,
-    createdBy: doc.createdBy.toString(),
+    assignedTo: doc.assignedTo ? (doc.assignedTo._id ? doc.assignedTo._id.toString() : doc.assignedTo.toString()) : undefined,
+    createdBy: doc.createdBy ? (doc.createdBy._id ? doc.createdBy._id.toString() : doc.createdBy.toString()) : '',
     organizationId: doc.organizationId?.toString() ?? '',
     lastContactedAt: doc.lastContactedAt,
     customFields: doc.customFields,
@@ -214,7 +214,7 @@ class LeadService {
       }
 
       if (userRole && userRole !== 'admin') {
-        query.createdBy = userId;
+        query.$or = [{ createdBy: userId }, { assignedTo: userId }];
       }
 
       const lead = await Lead.findOne(query).populate('assignedTo', 'fullName email').populate('createdBy', 'fullName email');
@@ -245,7 +245,8 @@ class LeadService {
       }
 
       if (userRole !== 'admin') {
-        query.createdBy = userId;
+        query.$and = query.$and || [];
+        query.$and.push({ $or: [{ createdBy: userId }, { assignedTo: userId }] });
       }
 
       if (filter.status?.length) {
@@ -261,10 +262,13 @@ class LeadService {
       }
 
       if (filter.search) {
-        query.$or = [
-          { name: { $regex: filter.search, $options: 'i' } },
-          { email: { $regex: filter.search, $options: 'i' } },
-        ];
+        query.$and = query.$and || [];
+        query.$and.push({
+          $or: [
+            { name: { $regex: filter.search, $options: 'i' } },
+            { email: { $regex: filter.search, $options: 'i' } },
+          ],
+        });
       }
 
       if (filter.dateFrom || filter.dateTo) {
@@ -320,7 +324,7 @@ class LeadService {
       }
 
       if (userRole !== 'admin') {
-        query.createdBy = userId;
+        query.$or = [{ createdBy: userId }, { assignedTo: userId }];
       }
 
       const lead = await Lead.findOne(query);
@@ -394,7 +398,7 @@ class LeadService {
       }
 
       if (userRole !== 'admin') {
-        query.createdBy = userId;
+        query.$or = [{ createdBy: userId }, { assignedTo: userId }];
       }
 
       const lead = await Lead.findOne(query);

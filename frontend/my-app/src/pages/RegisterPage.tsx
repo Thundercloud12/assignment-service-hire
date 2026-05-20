@@ -1,14 +1,17 @@
 import { useState } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useSearchParams } from 'react-router-dom';
 import { authService } from '../services/auth.service';
 import { useAuthStore } from '../store/auth.store';
 import { useThemeStore } from '../store/theme.store';
 
 export const RegisterPage: React.FC = () => {
+  const [searchParams] = useSearchParams();
+  const inviteToken = searchParams.get('token') || undefined;
+
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [role, setRole] = useState<'admin' | 'sales_user'>('sales_user');
+  const [companyName, setCompanyName] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const navigate = useNavigate();
@@ -21,7 +24,13 @@ export const RegisterPage: React.FC = () => {
     setLoading(true);
 
     try {
-      const result = await authService.register({ fullName, email, password, role });
+      const result = await authService.register({ 
+        fullName, 
+        email, 
+        password, 
+        companyName: inviteToken ? undefined : companyName, 
+        inviteToken 
+      });
       setAuth(result.user, result.tokens.accessToken, result.tokens.refreshToken);
       navigate('/dashboard');
     } catch (err: unknown) {
@@ -68,7 +77,9 @@ export const RegisterPage: React.FC = () => {
         <div className="card-dark w-full max-w-md p-8 space-y-5 shadow-2xl animate-scale-up">
           
           <div className="space-y-1.5 text-center">
-            <h1 className="text-2xl font-bold tracking-tight text-white [data-theme=light]:text-zinc-900">Create your console account</h1>
+            <h1 className="text-2xl font-bold tracking-tight text-white [data-theme=light]:text-zinc-900">
+              {inviteToken ? 'Join your team' : 'Create your workspace'}
+            </h1>
             <p className="text-zinc-500 text-xxs font-semibold uppercase tracking-wider">Access ClickLeads CRM</p>
           </div>
 
@@ -118,18 +129,19 @@ export const RegisterPage: React.FC = () => {
               />
             </div>
 
-            <div className="space-y-1">
-              <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-500">Console Security Role</label>
-              <select
-                value={role}
-                onChange={(e) => setRole(e.target.value as 'admin' | 'sales_user')}
-                className="input-dark w-full appearance-none cursor-pointer"
-                style={{ backgroundPosition: 'right 12px center', backgroundImage: 'url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns=\'http://www.w3.org/2000/svg\' fill=\'none\' viewBox=\'0 0 20 20\'%3E%3Cpath stroke=\'%236b7280\' stroke-linecap=\'round\' stroke-linejoin=\'round\' stroke-width=\'1.5\' d=\'M6 8l4 4 4-4\'/%3E%3C/svg%3E")', backgroundRepeat: 'no-repeat', backgroundSize: '1.25rem' }}
-              >
-                <option value="sales_user" className="bg-zinc-900 text-white">Sales Representative</option>
-                <option value="admin" className="bg-zinc-900 text-white">Administrator</option>
-              </select>
-            </div>
+            {!inviteToken && (
+              <div className="space-y-1">
+                <label className="block text-[10px] font-bold uppercase tracking-wider text-zinc-500">Company Name</label>
+                <input
+                  type="text"
+                  value={companyName}
+                  onChange={(e) => setCompanyName(e.target.value)}
+                  required
+                  className="input-dark w-full"
+                  placeholder="Acme Corp"
+                />
+              </div>
+            )}
 
             <button
               type="submit"

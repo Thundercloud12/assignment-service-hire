@@ -11,10 +11,13 @@ emailRouter.use(authMiddleware);
 
 // --- Email Template CRUD ---
 
-// Get all email templates
+// Get all email templates for the current user
 emailRouter.get('/templates', async (req, res, next) => {
   try {
-    const templates = await EmailTemplate.find().populate('createdBy', 'fullName email').sort({ createdAt: -1 });
+    if (!req.user) {
+      throw new ApiError('User not authenticated', 401);
+    }
+    const templates = await EmailTemplate.find({ createdBy: req.user.id }).populate('createdBy', 'fullName email').sort({ createdAt: -1 });
     res.json({
       success: true,
       data: templates,
@@ -67,6 +70,9 @@ emailRouter.post('/templates', authorizeRoles(['admin']), async (req, res, next)
 // Update an email template (Admin only)
 emailRouter.put('/templates/:id', authorizeRoles(['admin']), async (req, res, next) => {
   try {
+    if (!req.user) {
+      throw new ApiError('User not authenticated', 401);
+    }
     const { id } = req.params;
     const { name, subject, body } = req.body;
 
@@ -83,8 +89,8 @@ emailRouter.put('/templates/:id', authorizeRoles(['admin']), async (req, res, ne
       }
     }
 
-    const template = await EmailTemplate.findByIdAndUpdate(
-      id,
+    const template = await EmailTemplate.findOneAndUpdate(
+      { _id: id, createdBy: req.user.id },
       {
         name: name.trim(),
         subject: subject.trim(),
@@ -111,8 +117,11 @@ emailRouter.put('/templates/:id', authorizeRoles(['admin']), async (req, res, ne
 // Delete an email template (Admin only)
 emailRouter.delete('/templates/:id', authorizeRoles(['admin']), async (req, res, next) => {
   try {
+    if (!req.user) {
+      throw new ApiError('User not authenticated', 401);
+    }
     const { id } = req.params;
-    const template = await EmailTemplate.findByIdAndDelete(id);
+    const template = await EmailTemplate.findOneAndDelete({ _id: id, createdBy: req.user.id });
 
     if (!template) {
       throw new ApiError('Template not found', 404);
@@ -130,6 +139,29 @@ emailRouter.delete('/templates/:id', authorizeRoles(['admin']), async (req, res,
 
 // --- Email Actions & Tracking ---
 
+// Send a custom email draft
+emailRouter.post('/send-custom/:leadId', async (req, res, next) => {
+  try {
+    if (!req.user) {
+      throw new ApiError('User not authenticated', 401);
+    }
+    const { leadId } = req.params;
+    const { subject, body } = req.body;
+
+    if (!subject || !body) {
+      throw new ApiError('Subject and body are required', 400);
+    }
+
+    const history = await emailService.sendCustomEmail(leadId, subject, body, req.user.id);
+
+    res.json({
+      success: true,
+      data: history,
+    });
+  } catch (error) {
+    next(error);
+  }
+});
 // Get email history logs for a lead
 emailRouter.get('/history/:leadId', async (req, res, next) => {
   try {

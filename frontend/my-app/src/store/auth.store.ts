@@ -14,7 +14,7 @@ interface AuthState {
 }
 
 export const useAuthStore = create<AuthState>((set) => ({
-  user: null,
+  user: localStorage.getItem('user') ? JSON.parse(localStorage.getItem('user')!) : null,
   accessToken: localStorage.getItem('accessToken'),
   refreshToken: localStorage.getItem('refreshToken'),
   isLoading: false,

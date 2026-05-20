@@ -5,8 +5,9 @@ import logger from '../config/logger';
 import { ApiError } from '../errors/ApiError';
 import { User } from '../models/User';
 import { Organization } from '../models/Organization';
+import { emailService } from './email.service';
 import type { IAuthResponse, IAuthTokenPayload, IUserPublic } from '../interfaces/IUser';
-import type { LoginInput, RefreshTokenInput, RegisterInput } from '../validators/auth.validation';
+import type { LoginInput, RefreshTokenInput, RegisterInput, InviteInput } from '../validators/auth.validation';
 import { USER_ROLES, type UserRole } from '../constants/auth.constants';
 
 type JwtExpiresIn = jwt.SignOptions['expiresIn'];
@@ -92,22 +93,32 @@ class AuthService {
         throw new ApiError('User with this email already exists', 409);
       }
 
-      const role = input.role ?? USER_ROLES.SALES_USER;
+      let role = input.role ?? USER_ROLES.ADMIN;
       let organizationId = input.organizationId;
 
-      if (!organizationId) {
-        if (role === USER_ROLES.ADMIN) {
-          const org = await Organization.create({ name: `${input.fullName}'s Workspace` });
-          organizationId = org._id.toString();
-        } else {
-          const existingOrg = await Organization.findOne();
-          if (existingOrg) {
-            organizationId = existingOrg._id.toString();
+      if (input.inviteToken) {
+        try {
+          const decoded = jwt.verify(input.inviteToken, this.accessTokenSecret);
+          if (typeof decoded === 'object' && decoded !== null && 'email' in decoded && 'organizationId' in decoded && 'role' in decoded) {
+            if (decoded.email !== email) {
+              throw new ApiError('Email does not match the invitation', 400);
+            }
+            organizationId = decoded.organizationId as string;
+            role = decoded.role as UserRole;
           } else {
-            const defaultOrg = await Organization.create({ name: 'Default Workspace' });
-            organizationId = defaultOrg._id.toString();
+            throw new ApiError('Invalid invitation token payload', 400);
           }
+        } catch (error) {
+          if (error instanceof ApiError) throw error;
+          throw new ApiError('Invalid or expired invitation token', 400);
         }
+      } else {
+        if (!input.companyName) {
+          throw new ApiError('Company name is required to create a new workspace', 400);
+        }
+        role = USER_ROLES.ADMIN; // Creator is always admin
+        const org = await Organization.create({ name: input.companyName });
+        organizationId = org._id.toString();
       }
 
       const passwordHash = await bcrypt.hash(input.password, SALT_ROUNDS);
@@ -196,9 +207,39 @@ class AuthService {
     return toUserPublic(user.toObject() as PersistedUser);
   }
 
-  async getUsers(): Promise<IUserPublic[]> {
-    const users = await User.find();
+  async getUsers(organizationId: string): Promise<IUserPublic[]> {
+    const users = await User.find({ organizationId });
     return users.map((u) => toUserPublic(u.toObject() as PersistedUser));
+  }
+
+  async inviteUser(adminUserId: string, input: InviteInput): Promise<void> {
+    const adminUser = await User.findById(adminUserId);
+    if (!adminUser || adminUser.role !== USER_ROLES.ADMIN) {
+      throw new ApiError('Only administrators can invite users', 403);
+    }
+
+    const targetEmail = input.email.toLowerCase();
+    const existingUser = await User.findOne({ email: targetEmail });
+    if (existingUser) {
+      throw new ApiError('A user with this email already exists', 409);
+    }
+
+    const invitePayload = {
+      email: targetEmail,
+      organizationId: adminUser.organizationId.toString(),
+      role: input.role,
+    };
+
+    // Use a long-lived token for the invite link (e.g. 48h)
+    const inviteToken = jwt.sign(invitePayload, this.accessTokenSecret, { expiresIn: '48h' });
+    const inviteUrl = `${process.env.FRONTEND_ORIGIN || 'http://localhost:5173'}/register?token=${inviteToken}`;
+
+    const populatedAdmin = await User.findById(adminUserId).populate<{ organizationId: { name: string } }>('organizationId');
+    const companyName = populatedAdmin?.organizationId?.name || 'ClickLeads';
+
+    await emailService.sendTeamInviteEmail(targetEmail, inviteUrl, adminUser.fullName, companyName, input.role);
+
+    logger.info(`Invite sent to ${targetEmail} by admin ${adminUser.email}`);
   }
 }
 
