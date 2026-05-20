@@ -5,7 +5,7 @@ const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:4000/api'
 
 // Extend config to store the timer ID
 interface CustomAxiosRequestConfig extends InternalAxiosRequestConfig {
-  coldStartTimerId?: number | NodeJS.Timeout;
+  coldStartTimerId?: number | ReturnType<typeof setTimeout>;
 }
 
 const apiClient: AxiosInstance = axios.create({

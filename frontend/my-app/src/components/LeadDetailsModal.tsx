@@ -57,7 +57,6 @@ export const LeadDetailsModal: React.FC<LeadDetailsModalProps> = ({ leadId, onCl
   const [composerSubject, setComposerSubject] = useState('');
   const [composerBody, setComposerBody] = useState('');
   const [aiLoading, setAILoading] = useState(false);
-  const [aiError, setAIError] = useState('');
 
   // Score influencer graph states
   const [scoreGraphData, setScoreGraphData] = useState<IScoreInfluencerData | null>(null);
@@ -295,7 +294,6 @@ export const LeadDetailsModal: React.FC<LeadDetailsModalProps> = ({ leadId, onCl
   const handleGenerateAIDraft = async () => {
     const addToast = useNotificationStore.getState().addToast;
     setAILoading(true);
-    setAIError('');
     try {
       const draft = await frontendAiService.generateEmailDraft(leadId, selectedTemplateId || null);
       
@@ -314,41 +312,13 @@ export const LeadDetailsModal: React.FC<LeadDetailsModalProps> = ({ leadId, onCl
       addToast('AI sales copilot draft generated successfully! You can now review and edit it.', 'success');
     } catch (err: any) {
       const errMsg = err.response?.data?.message || err.message || 'Failed to generate AI email draft';
-      setAIError(errMsg);
       addToast(errMsg, 'error');
     } finally {
       setAILoading(false);
     }
   };
 
-  // Tracking Mock webhook triggers
-  const handleMockOpen = async (historyId: string) => {
-    const addToast = useNotificationStore.getState().addToast;
-    try {
-      await emailService.mockOpenEmail(historyId);
-      fetchEmailLogs();
-      fetchTimeline();
-      fetchLeadDetails(); // Score updates (+10 pts opened)
-      onLeadUpdated();
-      addToast('Mock email open event registered!', 'success');
-    } catch (err: any) {
-      addToast(err.message || 'Failed to trigger mock open', 'error');
-    }
-  };
 
-  const handleMockClick = async (historyId: string) => {
-    const addToast = useNotificationStore.getState().addToast;
-    try {
-      await emailService.mockClickEmail(historyId);
-      fetchEmailLogs();
-      fetchTimeline();
-      fetchLeadDetails(); // Score updates (+15 pts clicked)
-      onLeadUpdated();
-      addToast('Mock email click event registered!', 'success');
-    } catch (err: any) {
-      addToast(err.message || 'Failed to trigger mock click', 'error');
-    }
-  };
 
   const getScoreColor = (score: number) => {
     if (score >= 60) return 'text-accent-emerald bg-accent-emerald/10 border-accent-emerald/20';
