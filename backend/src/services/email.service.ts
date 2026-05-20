@@ -1,3 +1,4 @@
+import { Resend } from 'resend';
 import { EmailTemplate } from '../models/EmailTemplate';
 import { EmailHistory } from '../models/EmailHistory';
 import { Lead } from '../models/Lead';
@@ -5,6 +6,8 @@ import { leadService } from './lead.service';
 import { activityService } from './activity.service';
 import { ApiError } from '../errors/ApiError';
 import logger from '../config/logger';
+
+const resend = new Resend(process.env.RESEND_API_KEY);
 
 class EmailService {
   async sendTemplatedEmail(leadId: string, templateId: string, userId: string) {
@@ -37,6 +40,18 @@ class EmailService {
         body = body.replace(regex, val);
       });
 
+      const { data, error } = await resend.emails.send({
+        from: 'Acme <onboarding@resend.dev>',
+        to: [lead.email],
+        subject,
+        html: body,
+      });
+
+      if (error) {
+        logger.error(`Resend Error: ${error.message}`);
+        throw new ApiError(error.message, 500);
+      }
+
       // Save email history entry
       const history = await EmailHistory.create({
         leadId: lead._id,
@@ -48,16 +63,7 @@ class EmailService {
         sentBy: userId,
       });
 
-      // SIMULATION: Print the full rendered email in the terminal console
-      console.log('\n======================================================');
-      console.log('>>> [SIMULATED EMAIL SENT] <<<');
-      console.log(`TO: ${lead.email}`);
-      console.log(`SUBJECT: ${subject}`);
-      console.log(`BODY:`);
-      console.log(body);
-      console.log('======================================================\n');
-
-      logger.info(`Simulated email sent to: ${lead.email} via template: ${template.name}`);
+      logger.info(`Real email sent to: ${lead.email} via template: ${template.name}, Resend ID: ${data?.id}`);
 
       // Log sent activity
       await activityService.logActivity({

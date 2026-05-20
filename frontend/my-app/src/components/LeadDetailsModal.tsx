@@ -4,6 +4,7 @@ import { leadService } from '../services/lead.service';
 import { authService } from '../services/auth.service';
 import { activityService, type IActivityData } from '../services/activity.service';
 import { emailService, type IEmailTemplate, type IEmailHistoryData } from '../services/email.service';
+import { aiService as frontendAiService } from '../services/ai.service';
 import type { IUser } from '../types/auth';
 import { useAuthStore } from '../store/auth.store';
 import { useNotificationStore } from '../store/notification.store';
@@ -50,6 +51,13 @@ export const LeadDetailsModal: React.FC<LeadDetailsModalProps> = ({ leadId, onCl
   const [selectedTemplateId, setSelectedTemplateId] = useState('');
   const [emailLoading, setEmailLoading] = useState(false);
   const [showSendEmailForm, setShowSendEmailForm] = useState(false);
+
+  // AI Copilot States
+  const [showAICopilotModal, setShowAICopilotModal] = useState(false);
+  const [aiCopilotTemplateId, setAICopilotTemplateId] = useState('');
+  const [aiDraftOutput, setAIDraftOutput] = useState('');
+  const [aiLoading, setAILoading] = useState(false);
+  const [aiError, setAIError] = useState('');
 
   // Score influencer graph states
   const [scoreGraphData, setScoreGraphData] = useState<IScoreInfluencerData | null>(null);
@@ -249,6 +257,24 @@ export const LeadDetailsModal: React.FC<LeadDetailsModalProps> = ({ leadId, onCl
       addToast(err.message || 'Failed to send email', 'error');
     } finally {
       setEmailLoading(false);
+    }
+  };
+
+  // Trigger Context-Aware AI Generation
+  const handleGenerateAIDraft = async () => {
+    const addToast = useNotificationStore.getState().addToast;
+    setAILoading(true);
+    setAIError('');
+    try {
+      const draft = await frontendAiService.generateEmailDraft(leadId, aiCopilotTemplateId || null);
+      setAIDraftOutput(draft);
+      addToast('AI sales copilot draft generated successfully!', 'success');
+    } catch (err: any) {
+      const errMsg = err.response?.data?.message || err.message || 'Failed to generate AI email draft';
+      setAIError(errMsg);
+      addToast(errMsg, 'error');
+    } finally {
+      setAILoading(false);
     }
   };
 
@@ -575,12 +601,21 @@ export const LeadDetailsModal: React.FC<LeadDetailsModalProps> = ({ leadId, onCl
                 {/* Outbound sending button */}
                 <div className="flex justify-between items-center border-b border-hairline pb-4">
                   <h3 className="text-xs font-bold text-zinc-300 uppercase tracking-wider">Outbound Email History</h3>
-                  <button
-                    onClick={() => setShowSendEmailForm(!showSendEmailForm)}
-                    className="btn-primary"
-                  >
-                    {showSendEmailForm ? 'Cancel Send' : 'Send New Email'}
-                  </button>
+                  <div className="flex gap-2">
+                    <button
+                      onClick={() => setShowAICopilotModal(true)}
+                      className="btn-secondary flex items-center gap-1.5"
+                    >
+                      <span>🤖</span>
+                      AI Copilot Draft
+                    </button>
+                    <button
+                      onClick={() => setShowSendEmailForm(!showSendEmailForm)}
+                      className="btn-primary"
+                    >
+                      {showSendEmailForm ? 'Cancel Send' : 'Send New Email'}
+                    </button>
+                  </div>
                 </div>
 
                 {/* Inner Send Template Form */}
@@ -764,6 +799,123 @@ export const LeadDetailsModal: React.FC<LeadDetailsModalProps> = ({ leadId, onCl
         </div>
 
       </div>
+
+      {showAICopilotModal && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-[60] p-4 animate-fade-in">
+          <div className="bg-surface-card border border-hairline rounded-xl max-w-2xl w-full max-h-[90vh] flex flex-col shadow-2xl overflow-hidden animate-scale-up text-white">
+            
+            {/* Modal Header */}
+            <div className="p-6 border-b border-hairline bg-canvas flex justify-between items-center">
+              <div className="flex items-center gap-2">
+                <span className="text-xl">🤖</span>
+                <div>
+                  <h3 className="text-sm font-bold text-white uppercase tracking-wider">AI Sales Email Copilot</h3>
+                  <p className="text-[10px] text-zinc-400">Context-aware Llama-3 Sales Intelligence</p>
+                </div>
+              </div>
+              <button 
+                onClick={() => {
+                  setShowAICopilotModal(false);
+                  setAICopilotTemplateId('');
+                  setAIDraftOutput('');
+                  setAIError('');
+                }} 
+                className="text-zinc-500 hover:text-white p-1 rounded-lg hover:bg-zinc-900 transition active:scale-[0.9]"
+              >
+                <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2.5">
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-6 space-y-5 overflow-y-auto flex-1">
+              
+              {/* Template selector */}
+              <div className="space-y-1.5">
+                <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">
+                  Base on Email Template (Optional)
+                </label>
+                <select
+                  value={aiCopilotTemplateId}
+                  onChange={(e) => setAICopilotTemplateId(e.target.value)}
+                  className="w-full input-dark bg-zinc-900"
+                  disabled={aiLoading}
+                >
+                  <option value="">-- No template (Introductory Outreach Fallback) --</option>
+                  {templates.map((t) => (
+                    <option key={t._id} value={t._id}>
+                      {t.name}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[9px] text-zinc-500">
+                  Selecting a template feeds its structure to Llama-3 to maintain consistent company branding.
+                </p>
+              </div>
+
+              {/* Generate Trigger */}
+              <button
+                onClick={handleGenerateAIDraft}
+                disabled={aiLoading}
+                className="btn-primary w-full py-2.5 flex items-center justify-center gap-2 cursor-pointer transition active:scale-[0.98]"
+              >
+                {aiLoading ? (
+                  <>
+                    <div className="animate-spin inline-block w-4 h-4 border-2 border-white border-t-transparent rounded-full"></div>
+                    <span>Drafting Context-Aware Pitch...</span>
+                  </>
+                ) : (
+                  <>
+                    <span>✨</span>
+                    <span>Generate AI Copilot Draft</span>
+                  </>
+                )}
+              </button>
+
+              {/* Error box */}
+              {aiError && (
+                <div className="p-3 bg-accent-rose/10 border border-accent-rose/20 rounded-lg text-accent-rose font-mono text-[11px]">
+                  ⚠️ Failed: {aiError}
+                </div>
+              )}
+
+              {/* Output / Editor */}
+              {aiDraftOutput && (
+                <div className="space-y-2 animate-fade-in">
+                  <label className="block text-[10px] font-bold text-zinc-400 uppercase tracking-wider">
+                    Generated Sales Pitch Draft
+                  </label>
+                  <textarea
+                    value={aiDraftOutput}
+                    onChange={(e) => setAIDraftOutput(e.target.value)}
+                    rows={12}
+                    className="w-full input-dark font-mono text-xs p-3 leading-relaxed bg-canvas border border-hairline focus:border-primary focus:ring-1 focus:ring-primary/20 rounded-lg"
+                  />
+                  <div className="flex justify-between items-center gap-3">
+                    <span className="text-[9px] text-zinc-500 font-mono">
+                      Feel free to edit the generated text block above before copying or using.
+                    </span>
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText(aiDraftOutput);
+                        useNotificationStore.getState().addToast('Copied draft to clipboard!', 'success');
+                      }}
+                      className="btn-secondary text-[10px] py-1.5 px-3 flex items-center gap-1.5"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m-2 4h5m0 0l-3-3m3 3l-3 3"></path>
+                      </svg>
+                      Copy to Clipboard
+                    </button>
+                  </div>
+                </div>
+              )}
+
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

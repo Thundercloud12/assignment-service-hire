@@ -7,6 +7,7 @@ import { analyticsRouter } from './analytics.routes';
 import { presetRouter } from './preset.routes';
 import { duplicateRouter } from './duplicate.routes';
 import { csvRouter } from './csv.routes';
+import { aiRouter } from './ai.routes';
 
 export const apiRouter = Router();
 
@@ -18,3 +19,4 @@ apiRouter.use('/analytics', analyticsRouter);
 apiRouter.use('/filter-presets', presetRouter);
 apiRouter.use('/leads/duplicates', duplicateRouter);
 apiRouter.use('/leads/csv', csvRouter);
+apiRouter.use('/ai', aiRouter);
